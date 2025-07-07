@@ -4,31 +4,15 @@ local hturtle = require("turtle_miner")
 local stringUtils = require("cc.strings")
 
 -- TODO: read from list. generate filter list from connected chest at MOTHER computer
-local valuable_loot =
+local building_blocks =
 {
-    ["minecraft:ancient_debris"] = true,
-    ["minecraft:diamond"] = true,
-    ["minecraft:emerald"] = true,
-    ["minecraft:raw_gold"] = true,
-    ["minecraft:raw_iron"] = true,
-    ["minecraft:redstone"] = true,
-    ["minecraft:lapis_lazuli"] = true,
-    ["minecraft:coal"] = true,
-    ["modern_industrialization:lignite_coal"] = true,
-}
-
-local valuable_loot_by_modname = {
-    ["indrev"] = true,
+    ["twigs:cobblestone_bricks"] = true,
 }
 
 -- miner's inventory positions for key items
 local light = 1
-local lava = 2
-local building = 3
 
-local torchInterval = 5 -- block interval for torch placement
-
-local fillSurfacesEnabled = false
+local torchInterval = 5  -- block interval for torch placement
 
 local origin = nil       -- miner's point of origin
 local isOnMeridian = nil -- is line of longitude (north to south)
@@ -69,42 +53,28 @@ local function checkIfIsOnFloor()
     return origin[2] == y
 end
 
-local function checkIfOnCeiling(height)
-    local x, y, z = gps.locate()
-    return origin[2] + height - 1 == y
-end
 
 local function checkIfOnLeftmost()
     local x, y, z = gps.locate()
     return isOnMeridian and (x == origin[1]) or (z == origin[3])
 end
 
-local function fillSurfaces(height)
-    -- check for ceiling and fill
-    if checkIfOnCeiling(height) then
-        turtle.select(building)
-        turtle.placeUp()
-    elseif checkIfIsOnFloor() then
-        turtle.select(building)
-        turtle.placeDown()
+local function selectBuildingBlock()
+    for i = 2, 16 do
+        local itemDetail = turtle.getItemDetail(i)
+        if itemDetail ~= nil then
+            local itemName = itemDetail["name"]
+            if building_blocks[itemName] then
+                turtle.select(i)
+                return
+            end
+        end
     end
 end
 
 local function excavateLayer(width, height)
     local initAction
-    local firstAction
-    local secondAction
     local finalAction
-
-    -- determine if we're on the floor or ceiling
-    -- choose initial action
-    if checkIfIsOnFloor() then
-        firstAction = hturtle.up
-        secondAction = hturtle.down
-    else
-        firstAction = hturtle.down
-        secondAction = hturtle.up
-    end
 
     -- check if starting on left or right
     if checkIfOnLeftmost() then
@@ -119,23 +89,10 @@ local function excavateLayer(width, height)
     hturtle.forward()
     initAction()
 
-    -- traverse through the layer in an up-down pattern
+    -- lay platform below turtle
     for i = 1, width do
-        for j = 1, height - 1 do
-            if fillSurfacesEnabled then
-                fillSurfaces(height)
-            end
-
-            if i % 2 == 1 then
-                firstAction()
-            else
-                secondAction()
-            end
-        end
-
-        if fillSurfacesEnabled then
-            fillSurfaces(height)
-        end
+        selectBuildingBlock()
+        turtle.placeDown()
 
         -- move to next column except for last column
         if i ~= width then
@@ -164,36 +121,17 @@ local function placeLight()
 end
 
 local function disposeTrash()
-    -- dig down 2 blocks and place lava
-    turtle.select(lava) -- lava bucket
-    hturtle.down()
-    hturtle.down()
-    hturtle.up()
-    turtle.placeDown()
-
-    -- iterate through inventory and throw out filtered items
-    for i = 4, 16 do
+    -- iterate through inventory and throw out non-whitelisted items
+    for i = 2, 16 do
         turtle.select(i)
 
         local itemDetail = turtle.getItemDetail(i)
         if itemDetail ~= nil then
             local itemName = itemDetail["name"]
-            local itemModName = stringUtils.split(itemName, ":")[1]
-            if not valuable_loot[itemName] and not valuable_loot_by_modname[itemModName] then
+            if not building_blocks[itemName] then
                 turtle.dropDown()
             end
         end
-    end
-
-    -- grab lava
-    turtle.select(lava)
-    turtle.placeDown()
-    hturtle.up()
-
-    -- fill floor
-    if fillSurfacesEnabled then
-        turtle.select(building) -- common building block
-        turtle.placeDown()
     end
 end
 
@@ -225,17 +163,16 @@ local function init()
 
     local dist = tonumber(helper.input("How far: "))
     local width = tonumber(helper.input("How wide: "))
-    local height = tonumber(helper.input("How tall: "))
-    local evcavation = width * height * dist
+    local totalBlocks = width * dist
 
     -- TODO: ask for fillSurfacesEnabled
 
     helper.println("The turtle will go " .. dist .. " blocks to " .. calculateDestination(dist))
     helper.println("Okay, " ..
-        os.getComputerLabel() .. " will mine " .. width .. " blocks wide and " .. height .. " blocks tall.")
-    helper.println("This will excavate approximately " .. evcavation .. " blocks.")
+        os.getComputerLabel() .. " will lay a platform " .. width .. " blocks wide.")
+    helper.println("This will lay approximately " .. totalBlocks .. " blocks.")
 
-    excavate(dist, width, height)
+    excavate(dist, width, 1)
 end
 
 -- Start of Execution --

@@ -1,0 +1,20 @@
+-- This file is meant to be the startup file on a disk for installing its contents to connected turtles
+
+--Constants
+local MINING_DIR = "mining/"
+
+-- Delete old files
+if fs.find(MINING_DIR) then
+    fs.delete(MINING_DIR)
+end
+
+-- Install disk's contents to computer
+fs.copy("disk/mining", "./mining")
+
+-- Replace startup
+if fs.find("startup") then
+    fs.delete("startup")
+end
+fs.copy("disk/mining_startup", "./startup")
+
+print("Successfully installed files to turtle.")
